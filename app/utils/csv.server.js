@@ -1,3 +1,6 @@
+import { hasAccess } from "./plans";
+
+// ✅ EXISTING
 export function getHeaders() {
   return [
     "Name","Email","Financial Status","Paid at","Fulfillment Status",
@@ -11,6 +14,7 @@ export function getHeaders() {
   ];
 }
 
+// ✅ EXISTING
 export function formatOrderRows(orders) {
   const rows = [];
 
@@ -76,4 +80,27 @@ export function formatOrderRows(orders) {
   }
 
   return rows;
+}
+
+// 🔥 NEW
+export function generateCSV(orders, plan) {
+  let csv = "";
+
+  // ❌ Branding remove (Pro only)
+  if (!hasAccess(plan, "removeBranding")) {
+    csv += "Exported by Shopify Order Export App\n\n";
+  }
+
+  const headers = getHeaders();
+  const rows = formatOrderRows(orders);
+
+  csv += headers.join(",") + "\n";
+
+  csv += rows
+    .map((row) =>
+      row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")
+    )
+    .join("\n");
+
+  return csv;
 }

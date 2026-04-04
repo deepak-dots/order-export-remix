@@ -7,6 +7,7 @@ import {
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
 
+// 🔹 Shopify App Config (UNCHANGED)
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
@@ -24,6 +25,7 @@ const shopify = shopifyApp({
     : {}),
 });
 
+// 🔹 Exports (UNCHANGED)
 export default shopify;
 export const apiVersion = ApiVersion.October25;
 export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;
@@ -33,21 +35,53 @@ export const login = shopify.login;
 export const registerWebhooks = shopify.registerWebhooks;
 export const sessionStorage = shopify.sessionStorage;
 
+// 🔥 FINAL PLANS (CLEANED → Only Free + Pro)
 export const PLANS = {
-  BASIC: {
-    name: "Basic",
-    price: 3,
+  FREE: {
+    name: "Free",
+    price: 0,
   },
   PRO: {
     name: "Pro",
     price: 5,
   },
-  ADVANCED: {
-    name: "Advanced",
-    price: 9,
-  },
-  PLUS: {
-    name: "Plus",
-    price: 14,
-  },
 };
+
+// 🔥 Get Current Active Plan from Shopify (FINAL)
+export async function getCurrentPlan(admin) {
+  try {
+    const response = await admin.graphql(`
+      {
+        currentAppInstallation {
+          activeSubscriptions {
+            name
+            status
+          }
+        }
+      }
+    `);
+
+    const data = await response.json();
+
+    const subscriptions =
+      data?.data?.currentAppInstallation?.activeSubscriptions || [];
+
+    // ✅ Find ACTIVE subscription only
+    const activeSub = subscriptions.find(
+      (sub) => sub.status === "ACTIVE"
+    );
+
+    const planName = activeSub?.name;
+
+    // ✅ Normalize plan name
+    if (planName === "Pro" || planName === "Pro Plan") {
+      return "Pro";
+    }
+
+    // ✅ Default
+    return "Free";
+  } catch (error) {
+    console.error("Error fetching current plan:", error);
+    return "Free";
+  }
+}

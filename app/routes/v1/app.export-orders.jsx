@@ -1,18 +1,14 @@
-import { getHeaders, formatOrderRows } from "../utils/csv.server";
+import { generateCSV } from "../../utils/csv.server";
+import { authenticate, getCurrentPlan } from "../../shopify.server";
 
 export const action = async ({ request }) => {
-  const body = await request.json();
-  const orders = body.orders || [];
+  const { admin } = await authenticate.admin(request);
 
-  const headers = getHeaders();
-  const rows = formatOrderRows(orders);
+  const plan = await getCurrentPlan(admin);
 
-  const csv =
-    [headers, ...rows]
-      .map((row) =>
-        row.map((f) => `"${String(f).replace(/"/g, '""')}"`).join(",")
-      )
-      .join("\n");
+  const { orders } = await request.json();
+
+  const csv = generateCSV(orders, plan);
 
   return new Response(csv, {
     headers: {

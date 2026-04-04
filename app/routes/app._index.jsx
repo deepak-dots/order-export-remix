@@ -1,10 +1,14 @@
 import { useState, useMemo } from "react";
 import { useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { authenticate } from "../shopify.server";
+import { authenticate, getCurrentPlan } from "../shopify.server";
+import { hasAccess } from "../utils/plans";
 
+// ✅ LOADER (UNCHANGED)
 export const loader = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
+
+  const plan = await getCurrentPlan(admin);
 
   const ordersResponse = await admin.graphql(`
     {
@@ -34,15 +38,18 @@ export const loader = async ({ request }) => {
   const ordersJson = await ordersResponse.json();
 
   return {
+    plan,
     orders:
       ordersJson?.data?.orders?.edges?.map((edge) => edge.node) || [],
   };
 };
 
 export default function Index() {
-  const { orders } = useLoaderData();
+  const { orders, plan } = useLoaderData();
+  const userPlan = plan;
 
   const [selectedOrders, setSelectedOrders] = useState([]);
+  const [customOrders, setCustomOrders] = useState([]); // ✅ New state for Custom Export
   const [search, setSearch] = useState("");
 
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -51,7 +58,6 @@ export default function Index() {
   const [endDate, setEndDate] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
-  // ✅ FIXED DATE FORMATTER (SSR SAFE)
   const formatDate = (date) => {
     return new Date(date).toLocaleString("en-IN", {
       year: "numeric",
@@ -62,7 +68,6 @@ export default function Index() {
     });
   };
 
-  // FILTER + SEARCH
   const filteredOrders = useMemo(() => {
     return orders.filter((o) => {
       const s = search.toLowerCase();
@@ -103,7 +108,6 @@ export default function Index() {
     }
   };
 
-  // ✅ FIXED EXPORT
   const exportOrders = (data, fileName) => {
     if (!data.length) return alert("No orders");
 
@@ -140,34 +144,42 @@ export default function Index() {
     exportOrders(selected, "selected-orders.csv");
   };
 
+  const exportCustomOrders = () => {
+    if (!hasAccess(userPlan, "customProperties")) {
+      alert("Upgrade to Pro plan to use Custom Export");
+      return;
+    }
+    exportOrders(customOrders, "custom-orders.csv");
+  };
+
   return (
-    <s-page heading="Orders">
-      <s-section>
-        <s-stack direction="block" gap="base">
+    <div style={{ width: "100%", maxWidth: "100%", padding: "20px" }}>
+      <s-page heading={`Orders (${userPlan} Plan)`} fullWidth>
+        <s-section>
+          <s-stack direction="block" gap="base">
 
-          {/* SEARCH */}
-          <input
-            type="text"
-            placeholder="Search orders..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{
-              padding: "10px",
-              border: "1px solid #ccc",
-              borderRadius: "6px",
-              width: "300px",
-            }}
-          />
+            {/* SEARCH */}
+            <input
+              type="text"
+              placeholder="Search orders..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                padding: "10px",
+                border: "1px solid #ccc",
+                borderRadius: "6px",
+                width: "300px",
+              }}
+            />
 
-          {/* FILTER BUTTON */}
-          <div style={{ position: "relative" }}>
-            <s-button onClick={() => setFiltersOpen(!filtersOpen)}>
-              Filter by
-            </s-button>
+            {/* FILTER */}
+            <div style={{ position: "relative" }}>
+              <s-button onClick={() => setFiltersOpen(!filtersOpen)}>
+                Filter by
+              </s-button>
 
-            {filtersOpen && (
-              <div
-                style={{
+              {filtersOpen && (
+                <div style={{
                   position: "absolute",
                   top: "40px",
                   background: "#fff",
@@ -176,120 +188,112 @@ export default function Index() {
                   borderRadius: "8px",
                   zIndex: 10,
                   width: "250px",
-                }}
+                }}>
+                  {!activeFilter && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      <button onClick={() => setActiveFilter("date")}>Date</button>
+                      <button onClick={() => setActiveFilter("status")}>Status</button>
+                    </div>
+                  )}
+
+                  {activeFilter && (
+                    <button onClick={() => setActiveFilter(null)}>← Back</button>
+                  )}
+
+                  {activeFilter === "date" && (
+                    <>
+                      <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                      <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                    </>
+                  )}
+
+                  {activeFilter === "status" && (
+                    <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                      <option value="">All</option>
+                      <option value="FULFILLED">Fulfilled</option>
+                      <option value="UNFULFILLED">Unfulfilled</option>
+                    </select>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* EXPORT BUTTONS */}
+            <s-stack direction="inline" gap="base">
+              <s-button onClick={exportAllOrders}>
+                Export All
+              </s-button>
+
+              <s-button
+                onClick={exportSelectedOrders}
+                variant="primary"
+                disabled={selectedOrders.length === 0 }
               >
-                {!activeFilter && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    <button onClick={() => setActiveFilter("date")}>Date</button>
-                    <button onClick={() => setActiveFilter("status")}>Status</button>
-                  </div>
-                )}
+                Export Selected ({selectedOrders.length})
+              </s-button>
 
-                {activeFilter && (
-                  <button onClick={() => setActiveFilter(null)}>← Back</button>
-                )}
+              <s-button
+                onClick={exportCustomOrders}
+                variant="primary"
+                disabled={customOrders.length === 0 || !hasAccess(userPlan, "customProperties")}
+              >
+                Custom Export (Pro)
+              </s-button>
+            </s-stack>
 
-                {activeFilter === "date" && (
-                  <>
-                    <input
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                    />
-                    <input
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                    />
-                  </>
-                )}
-
-                {activeFilter === "status" && (
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                  >
-                    <option value="">All</option>
-                    <option value="FULFILLED">Fulfilled</option>
-                    <option value="UNFULFILLED">Unfulfilled</option>
-                  </select>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* EXPORT */}
-          <s-stack direction="inline" gap="base">
-            <s-button onClick={exportAllOrders}>
-              Export All
-            </s-button>
-
-            <s-button
-              onClick={exportSelectedOrders}
-              variant="primary"
-              disabled={selectedOrders.length === 0}
-            >
-              Export Selected ({selectedOrders.length})
-            </s-button>
-          </s-stack>
-
-          {/* TABLE */}
-          <s-table>
-            <s-table-head>
-              <s-table-row>
-                <s-table-cell variant="header">
-                  <input
-                    type="checkbox"
-                    checked={
-                      selectedOrders.length === filteredOrders.length &&
-                      filteredOrders.length > 0
-                    }
-                    onChange={toggleAll}
-                  />
-                </s-table-cell>
-
-                <s-table-cell variant="header">Order</s-table-cell>
-                <s-table-cell variant="header">Status</s-table-cell>
-                <s-table-cell variant="header">Total</s-table-cell>
-                <s-table-cell variant="header">Customer</s-table-cell>
-                <s-table-cell variant="header">Email</s-table-cell>
-                <s-table-cell variant="header">Date</s-table-cell>
-              </s-table-row>
-            </s-table-head>
-
-            <s-table-body>
-              {filteredOrders.map((o) => (
-                <s-table-row key={o.id}>
-                  <s-table-cell>
+            {/* TABLE */}
+            <s-table>
+              <s-table-head>
+                <s-table-row>
+                  <s-table-cell variant="header">
                     <input
                       type="checkbox"
-                      checked={selectedOrders.includes(o.id)}
-                      onChange={() => toggleOrder(o.id)}
+                      checked={
+                        selectedOrders.length === filteredOrders.length &&
+                        filteredOrders.length > 0
+                      }
+                      onChange={toggleAll}
                     />
                   </s-table-cell>
-
-                  <s-table-cell>{o.name}</s-table-cell>
-                  <s-table-cell>{o.displayFulfillmentStatus}</s-table-cell>
-                  <s-table-cell>
-                    {o.totalPriceSet?.shopMoney?.amount}{" "}
-                    {o.totalPriceSet?.shopMoney?.currencyCode}
-                  </s-table-cell>
-                  <s-table-cell>{o.customer?.displayName}</s-table-cell>
-                  <s-table-cell>{o.customer?.email}</s-table-cell>
-
-                  {/* ✅ FIXED */}
-                  <s-table-cell suppressHydrationWarning>
-                    {formatDate(o.createdAt)}
-                  </s-table-cell>
-
+                  <s-table-cell variant="header">Order</s-table-cell>
+                  <s-table-cell variant="header">Status</s-table-cell>
+                  <s-table-cell variant="header">Total</s-table-cell>
+                  <s-table-cell variant="header">Customer</s-table-cell>
+                  <s-table-cell variant="header">Email</s-table-cell>
+                  <s-table-cell variant="header">Date</s-table-cell>
                 </s-table-row>
-              ))}
-            </s-table-body>
-          </s-table>
+              </s-table-head>
 
-        </s-stack>
-      </s-section>
-    </s-page>
+              <s-table-body>
+                {filteredOrders.map((o) => (
+                  <s-table-row key={o.id}>
+                    <s-table-cell>
+                      <input
+                        type="checkbox"
+                        checked={selectedOrders.includes(o.id)}
+                        onChange={() => toggleOrder(o.id)}
+                      />
+                    </s-table-cell>
+                    <s-table-cell>{o.name}</s-table-cell>
+                    <s-table-cell>{o.displayFulfillmentStatus}</s-table-cell>
+                    <s-table-cell>
+                      {o.totalPriceSet?.shopMoney?.amount}{" "}
+                      {o.totalPriceSet?.shopMoney?.currencyCode}
+                    </s-table-cell>
+                    <s-table-cell>{o.customer?.displayName}</s-table-cell>
+                    <s-table-cell>{o.customer?.email}</s-table-cell>
+                    <s-table-cell suppressHydrationWarning>
+                      {formatDate(o.createdAt)}
+                    </s-table-cell>
+                  </s-table-row>
+                ))}
+              </s-table-body>
+            </s-table>
+
+          </s-stack>
+        </s-section>
+      </s-page>
+    </div>
   );
 }
 

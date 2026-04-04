@@ -2,33 +2,26 @@ import { redirect } from "react-router";
 import { authenticate } from "../shopify.server";
 
 export const loader = async ({ request }) => {
-  const { admin, session } = await authenticate.admin(request);
-
-  console.log("SESSION:", session);
+  const { admin } = await authenticate.admin(request);
 
   const url = new URL(request.url);
   const plan = url.searchParams.get("plan");
 
   const prices = {
-    Basic: 3,
     Pro: 5,
-    Advanced: 9,
-    Plus: 14,
   };
 
   if (!plan || !prices[plan]) {
-    throw new Error("Invalid plan selected");
+    throw new Error("Invalid plan");
   }
 
   const returnUrl = `${url.origin}/app`;
 
-  // ✅ DEV MODE: skip Shopify billing
-  if (process.env.SHOPIFY_APP_PUBLIC !== "true") {
-    console.log("DEV MODE: Skipping Shopify Billing API for plan:", plan);
+  // DEV MODE
+  if (process.env.NODE_ENV !== "production") {
     return redirect("/app");
   }
 
-  // ✅ REAL BILLING (only works after app is public)
   const mutation = `
     mutation appSubscriptionCreate($name: String!, $returnUrl: URL!, $price: Decimal!) {
       appSubscriptionCreate(
@@ -46,37 +39,21 @@ export const loader = async ({ request }) => {
         test: true
       ) {
         confirmationUrl
-        userErrors {
-          message
-        }
       }
     }
   `;
 
-  const response = await admin.graphql(mutation, {
+  const res = await admin.graphql(mutation, {
     variables: {
-      name: `${plan} Plan`,
+      name: "Pro",
       returnUrl,
-      price: prices[plan],
+      price: 5,
     },
   });
 
-  const data = await response.json();
+  const data = await res.json();
 
-  console.log("SHOPIFY RESPONSE:", data);
-
-  const errors = data?.data?.appSubscriptionCreate?.userErrors;
-
-  if (errors?.length) {
-    throw new Error(errors.map((e) => e.message).join(", "));
-  }
-
-  const confirmationUrl =
-    data?.data?.appSubscriptionCreate?.confirmationUrl;
-
-  if (!confirmationUrl) {
-    throw new Error("No confirmation URL");
-  }
-
-  return redirect(confirmationUrl);
+  return redirect(
+    data?.data?.appSubscriptionCreate?.confirmationUrl
+  );
 };
