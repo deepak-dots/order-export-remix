@@ -6,8 +6,7 @@ import { authenticate } from "../shopify.server";
 export const loader = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
 
-  const ordersResponse = await admin.graphql(
-    `#graphql
+  const ordersResponse = await admin.graphql(`
     {
       orders(first: 10, sortKey: CREATED_AT, reverse: true) {
         edges {
@@ -29,13 +28,14 @@ export const loader = async ({ request }) => {
           }
         }
       }
-    }`
-  );
+    }
+  `);
 
   const ordersJson = await ordersResponse.json();
 
   return {
-    orders: ordersJson?.data?.orders?.edges?.map(edge => edge.node) || [],
+    orders:
+      ordersJson?.data?.orders?.edges?.map((edge) => edge.node) || [],
   };
 };
 
@@ -45,14 +45,24 @@ export default function Index() {
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [search, setSearch] = useState("");
 
-  //  FILTER STATES
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState(null);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
-  //  FILTER + SEARCH
+  // ✅ FIXED DATE FORMATTER (SSR SAFE)
+  const formatDate = (date) => {
+    return new Date(date).toLocaleString("en-IN", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  // FILTER + SEARCH
   const filteredOrders = useMemo(() => {
     return orders.filter((o) => {
       const s = search.toLowerCase();
@@ -77,7 +87,6 @@ export default function Index() {
     });
   }, [orders, search, startDate, endDate, statusFilter]);
 
-  //  Toggle single
   const toggleOrder = (id) => {
     setSelectedOrders((prev) =>
       prev.includes(id)
@@ -86,7 +95,6 @@ export default function Index() {
     );
   };
 
-  //  Toggle all
   const toggleAll = () => {
     if (selectedOrders.length === filteredOrders.length) {
       setSelectedOrders([]);
@@ -95,7 +103,7 @@ export default function Index() {
     }
   };
 
-  //  EXPORT
+  // ✅ FIXED EXPORT
   const exportOrders = (data, fileName) => {
     if (!data.length) return alert("No orders");
 
@@ -107,7 +115,7 @@ export default function Index() {
         o.totalPriceSet?.shopMoney?.amount,
         o.customer?.displayName,
         o.customer?.email,
-        new Date(o.createdAt).toLocaleString(),
+        formatDate(o.createdAt),
       ]),
     ]
       .map((r) => r.join(","))
@@ -122,7 +130,8 @@ export default function Index() {
     a.click();
   };
 
-  const exportAllOrders = () => exportOrders(filteredOrders, "all-orders.csv");
+  const exportAllOrders = () =>
+    exportOrders(filteredOrders, "all-orders.csv");
 
   const exportSelectedOrders = () => {
     const selected = filteredOrders.filter((o) =>
@@ -133,11 +142,10 @@ export default function Index() {
 
   return (
     <s-page heading="Orders">
-
       <s-section>
         <s-stack direction="block" gap="base">
 
-          {/*  SEARCH */}
+          {/* SEARCH */}
           <input
             type="text"
             placeholder="Search orders..."
@@ -147,28 +155,29 @@ export default function Index() {
               padding: "10px",
               border: "1px solid #ccc",
               borderRadius: "6px",
-              width: "300px"
+              width: "300px",
             }}
           />
 
-          {/*  FILTER BUTTON */}
+          {/* FILTER BUTTON */}
           <div style={{ position: "relative" }}>
             <s-button onClick={() => setFiltersOpen(!filtersOpen)}>
               Filter by
             </s-button>
 
             {filtersOpen && (
-              <div style={{
-                position: "absolute",
-                top: "40px",
-                background: "#fff",
-                border: "1px solid #ddd",
-                padding: "15px",
-                borderRadius: "8px",
-                zIndex: 10,
-                width: "250px"
-              }}>
-
+              <div
+                style={{
+                  position: "absolute",
+                  top: "40px",
+                  background: "#fff",
+                  border: "1px solid #ddd",
+                  padding: "15px",
+                  borderRadius: "8px",
+                  zIndex: 10,
+                  width: "250px",
+                }}
+              >
                 {!activeFilter && (
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                     <button onClick={() => setActiveFilter("date")}>Date</button>
@@ -180,7 +189,6 @@ export default function Index() {
                   <button onClick={() => setActiveFilter(null)}>← Back</button>
                 )}
 
-                {/* DATE FILTER */}
                 {activeFilter === "date" && (
                   <>
                     <input
@@ -196,7 +204,6 @@ export default function Index() {
                   </>
                 )}
 
-                {/* STATUS FILTER */}
                 {activeFilter === "status" && (
                   <select
                     value={statusFilter}
@@ -207,12 +214,11 @@ export default function Index() {
                     <option value="UNFULFILLED">Unfulfilled</option>
                   </select>
                 )}
-
               </div>
             )}
           </div>
 
-          {/* EXPORT BUTTONS */}
+          {/* EXPORT */}
           <s-stack direction="inline" gap="base">
             <s-button onClick={exportAllOrders}>
               Export All
@@ -270,9 +276,12 @@ export default function Index() {
                   </s-table-cell>
                   <s-table-cell>{o.customer?.displayName}</s-table-cell>
                   <s-table-cell>{o.customer?.email}</s-table-cell>
-                  <s-table-cell>
-                    {new Date(o.createdAt).toLocaleString()}
+
+                  {/* ✅ FIXED */}
+                  <s-table-cell suppressHydrationWarning>
+                    {formatDate(o.createdAt)}
                   </s-table-cell>
+
                 </s-table-row>
               ))}
             </s-table-body>
@@ -280,7 +289,6 @@ export default function Index() {
 
         </s-stack>
       </s-section>
-
     </s-page>
   );
 }

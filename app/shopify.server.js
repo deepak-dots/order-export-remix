@@ -15,7 +15,7 @@ const shopify = shopifyApp({
   appUrl: process.env.SHOPIFY_APP_URL || "",
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),
-  distribution: AppDistribution.AppStore,
+  distribution: AppDistribution.CustomApp,
   future: {
     expiringOfflineAccessTokens: true,
   },
@@ -32,3 +32,22 @@ export const unauthenticated = shopify.unauthenticated;
 export const login = shopify.login;
 export const registerWebhooks = shopify.registerWebhooks;
 export const sessionStorage = shopify.sessionStorage;
+
+export const PLANS = {
+  BASIC: {
+    name: "Basic",
+    price: 3,
+  },
+  PRO: {
+    name: "Pro",
+    price: 5,
+  },
+  ADVANCED: {
+    name: "Advanced",
+    price: 9,
+  },
+  PLUS: {
+    name: "Plus",
+    price: 14,
+  },
+};

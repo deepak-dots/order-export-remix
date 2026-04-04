@@ -1,7 +1,11 @@
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
 
-// ✅ IMPORTANT
+// Shopify App Bridge Provider
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
+
+// ✅ Polaris styles + translations
+import "@shopify/polaris/build/esm/styles.css";
+import enTranslations from "@shopify/polaris/locales/en.json";
 
 export default function App() {
   return (
@@ -19,8 +23,8 @@ export default function App() {
       </head>
 
       <body>
-        {/* ✅ FIX HERE */}
-        <AppProvider>
+        {/* ✅ FIX: Pass i18n here */}
+        <AppProvider i18n={enTranslations}>
           <Outlet />
         </AppProvider>
 
