@@ -23,6 +23,21 @@ const shopify = shopifyApp({
   ...(process.env.SHOP_CUSTOM_DOMAIN
     ? { customShopDomains: [process.env.SHOP_CUSTOM_DOMAIN] }
     : {}),
+  webhooks: {
+    APP_UNINSTALLED: {
+      deliveryMethod: "http",
+      callbackUrl: "/webhooks/app/uninstalled",
+    },
+  },  
+  
+  billing: {
+    Pro: {
+      amount: 5,
+      currencyCode: "USD",
+      interval: "EVERY_30_DAYS",
+    },
+  },
+
 });
 
 // 🔹 Exports (UNCHANGED)
