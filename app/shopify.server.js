@@ -50,7 +50,7 @@ export const login = shopify.login;
 export const registerWebhooks = shopify.registerWebhooks;
 export const sessionStorage = shopify.sessionStorage;
 
-// 🔥 FINAL PLANS (CLEANED → Only Free + Pro)
+//  FINAL PLANS (CLEANED → Only Free + Pro)
 export const PLANS = {
   FREE: {
     name: "Free",
@@ -62,9 +62,15 @@ export const PLANS = {
   },
 };
 
-// 🔥 Get Current Active Plan from Shopify (FINAL)
+//  Get Current Active Plan from Shopify (FINAL)
 export async function getCurrentPlan(admin) {
   try {
+    //  DEV MODE FIX
+    if (process.env.NODE_ENV !== "production") {
+      console.log("DEV MODE → forcing Pro plan");
+      return "Pro";
+    }
+
     const response = await admin.graphql(`
       {
         currentAppInstallation {
@@ -81,19 +87,21 @@ export async function getCurrentPlan(admin) {
     const subscriptions =
       data?.data?.currentAppInstallation?.activeSubscriptions || [];
 
-    // ✅ Find ACTIVE subscription only
+    //  Find ACTIVE subscription only
     const activeSub = subscriptions.find(
       (sub) => sub.status === "ACTIVE"
     );
 
     const planName = activeSub?.name;
 
-    // ✅ Normalize plan name
+    console.log("Shopify Plan:", planName); // debug
+
+    //  Normalize plan name
     if (planName === "Pro" || planName === "Pro Plan") {
       return "Pro";
     }
 
-    // ✅ Default
+    //  Default
     return "Free";
   } catch (error) {
     console.error("Error fetching current plan:", error);

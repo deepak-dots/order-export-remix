@@ -7,7 +7,6 @@ embedded = true
 
 [build]
 automatically_update_urls_on_dev = true
-include_config_on_deploy = true
 
 [webhooks]
 api_version = "2026-04"
@@ -25,7 +24,7 @@ api_version = "2026-04"
 scopes = "read_orders,read_products,read_customers,write_products"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://example.com/api/auth, https://example.com/auth, https://example.com/auth/callback, https://example.com/auth/callback" ]
 
 [product.metafields.app.demo_info]
 type = "single_line_text_field"

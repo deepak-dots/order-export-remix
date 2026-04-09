@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-// ✅ Safe date formatter (NO hydration issue)
+//  Safe date formatter (NO hydration issue)
 const formatDate = (date) => {
   if (!date) return "";
   return new Date(date).toISOString().replace("T", " ").slice(0, 19);
@@ -65,7 +65,7 @@ export default function OrdersTable({
                 {order.totalPriceSet?.shopMoney?.currencyCode}
               </s-table-cell>
 
-              {/* ✅ FIXED DATE */}
+              {/*  FIXED DATE */}
               <s-table-cell>
                 {formatDate(order.createdAt)}
               </s-table-cell>

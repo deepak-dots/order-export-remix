@@ -10,7 +10,7 @@ import {
   BlockStack,
 } from "@shopify/polaris";
 
-// ✅ Only 2 plans
+//  Only 2 plans
 const plans = [
   {
     name: "Free",
@@ -31,7 +31,7 @@ const plans = [
   },
 ];
 
-// ✅ Plan hierarchy and feature access
+//  Plan hierarchy and feature access
 export const PLAN_HIERARCHY = {
   Free: 0,
   Pro: 1,
@@ -62,7 +62,7 @@ export default function PricingTable({ currentPlan }) {
           <div key={plan.name} style={{ minWidth: "280px" }}>
             <Card
               sectioned
-              // ✅ Highlight current plan
+              //  Highlight current plan
               borderColor={plan.name === activePlan ? "#28a745" : undefined}
             >
               <BlockStack gap="300">
@@ -86,7 +86,7 @@ export default function PricingTable({ currentPlan }) {
                   ))}
                 </BlockStack>
 
-                {/* ✅ PLAN BUTTON */}
+                {/*  PLAN BUTTON */}
                 {plan.name === activePlan ? (
                   <Button variant="secondary" fullWidth disabled>
                     Current Plan
@@ -101,7 +101,7 @@ export default function PricingTable({ currentPlan }) {
                         return;
                       }
 
-                      // ✅ DEV MODE
+                      //  DEV MODE
                       if (import.meta.env.VITE_SHOPIFY_APP_PUBLIC !== "true") {
                         localStorage.setItem("userPlan", plan.name);
                         alert(`Simulating subscription for ${plan.name} plan`);
@@ -109,7 +109,7 @@ export default function PricingTable({ currentPlan }) {
                         return;
                       }
 
-                      // ✅ PRODUCTION
+                      //  PRODUCTION
                       navigate(`/app/subscribe?plan=${plan.name}`);
                     }}
                   >

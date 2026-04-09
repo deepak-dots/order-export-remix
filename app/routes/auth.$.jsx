@@ -4,7 +4,7 @@ import { registerWebhooks } from "../shopify.server";
 
 export const loader = async ({ request }) => {
   await authenticate.admin(request);
-  await registerWebhooks({ session });
+  //await registerWebhooks({ session });
 
   return null;
 };

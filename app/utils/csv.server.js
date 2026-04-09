@@ -1,8 +1,8 @@
 import { hasAccess } from "./plans";
 
-// ✅ EXISTING
-export function getHeaders() {
-  return [
+// Existing headers
+export function getHeaders(plan) {
+  const headers = [
     "Name","Email","Financial Status","Paid at","Fulfillment Status",
     "Fulfilled at","Currency","Subtotal","Shipping","Taxes","Total",
     "Discount Code","Discount Amount","Shipping Method","Created at",
@@ -10,11 +10,17 @@ export function getHeaders() {
     "Lineitem requires shipping","Lineitem taxable","Lineitem fulfillment status",
     "Billing Name","Billing Address1","Billing City","Billing Zip","Billing Country",
     "Shipping Name","Shipping Address1","Shipping City","Shipping Zip","Shipping Country",
-    "Notes","Tags","Phone","Custom Properties"
+    "Notes","Tags","Phone"
   ];
+
+  if (hasAccess(plan, "customProperties")) {
+    headers.push("Custom Properties", "Scheduled Export", "Remove Shopify Branding");
+  }
+
+  return headers;
 }
 
-// ✅ EXISTING
+// Existing row formatter
 export function formatOrderRows(orders) {
   const rows = [];
 
@@ -82,24 +88,42 @@ export function formatOrderRows(orders) {
   return rows;
 }
 
-// 🔥 NEW
-export function generateCSV(orders, plan) {
+
+
+//  generateCSV
+export async function generateCSV(orders, plan, session) {
   let csv = "";
 
-  // ❌ Branding remove (Pro only)
   if (!hasAccess(plan, "removeBranding")) {
     csv += "Exported by Shopify Order Export App\n\n";
   }
 
-  const headers = getHeaders();
-  const rows = formatOrderRows(orders);
+  const headers = getHeaders(plan);
+
+  // ✅ Correct rows generation
+  const baseRows = formatOrderRows(orders);
+  const finalRows = [];
+
+  for (let i = 0; i < baseRows.length; i++) {
+    let row = baseRows[i];
+
+    // match order index (simple mapping)
+    const order = orders[Math.floor(i / (orders[i]?.line_items?.length || 1))];
+
+    if (hasAccess(plan, "customProperties")) {
+      const customProps = (order?.customAttributes || [])
+        .map(attr => `${attr.key}: ${attr.value}`)
+        .join(" | ");
+
+      row.push(customProps || "", "", "");
+    }
+
+    finalRows.push(row);
+  }
 
   csv += headers.join(",") + "\n";
-
-  csv += rows
-    .map((row) =>
-      row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")
-    )
+  csv += finalRows
+    .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))
     .join("\n");
 
   return csv;
