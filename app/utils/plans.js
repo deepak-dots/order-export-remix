@@ -1,6 +1,6 @@
 export const PLAN_HIERARCHY = {
-  Free: 0,
-  Pro: 1,
+  free: 0,
+  pro: 1,
 };
 
 export const FEATURE_ACCESS = {
@@ -10,7 +10,8 @@ export const FEATURE_ACCESS = {
 };
 
 export const hasAccess = (plan, feature) => {
-  const level = PLAN_HIERARCHY[plan];
+  const normalizedPlan = plan?.toLowerCase();
+  const level = PLAN_HIERARCHY[normalizedPlan];
   const required = FEATURE_ACCESS[feature];
 
   if (required === undefined) return true; // free features

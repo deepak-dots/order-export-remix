@@ -8,7 +8,7 @@ export const loader = async ({ request }) => {
   const plan = url.searchParams.get("plan");
 
   const prices = {
-    Pro: 5,
+    pro: 5,
   };
 
   if (!plan || !prices[plan]) {
@@ -18,9 +18,10 @@ export const loader = async ({ request }) => {
   const returnUrl = `${url.origin}/app`;
 
   // DEV MODE
-  if (process.env.NODE_ENV !== "production") {
-    return redirect("/app");
-  }
+
+  // if (process.env.NODE_ENV === "development") {
+  //   return redirect("/app");
+  // }
 
   const mutation = `
     mutation appSubscriptionCreate($name: String!, $returnUrl: URL!, $price: Decimal!) {
@@ -45,7 +46,7 @@ export const loader = async ({ request }) => {
 
   const res = await admin.graphql(mutation, {
     variables: {
-      name: "Pro",
+      name: "pro",
       returnUrl,
       price: 5,
     },

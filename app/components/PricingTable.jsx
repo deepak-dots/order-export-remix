@@ -10,10 +10,10 @@ import {
   BlockStack,
 } from "@shopify/polaris";
 
-//  Only 2 plans
+// freeOnly 2 plans
 const plans = [
   {
-    name: "Free",
+    name: "free",
     price: "$0/month",
     features: [
       "Shopify default order export",
@@ -21,7 +21,7 @@ const plans = [
     ],
   },
   {
-    name: "Pro",
+    name: "pro",
     price: "$5/month",
     features: [
       "Export custom properties",
@@ -31,10 +31,10 @@ const plans = [
   },
 ];
 
-//  Plan hierarchy and feature access
+// freePlan hierarchy and feature access
 export const PLAN_HIERARCHY = {
-  Free: 0,
-  Pro: 1,
+  free: 0,
+  pro: 1,
 };
 
 export const FEATURE_ACCESS = {
@@ -53,7 +53,7 @@ export const hasAccess = (plan, feature) => {
 
 export default function PricingTable({ currentPlan }) {
   const navigate = useNavigate();
-  const activePlan = currentPlan || localStorage.getItem("userPlan") || "Free";
+  const activePlan = (currentPlan || "free").toLowerCase();
 
   return (
     <div style={{ overflowX: "auto" }}>
@@ -62,7 +62,7 @@ export default function PricingTable({ currentPlan }) {
           <div key={plan.name} style={{ minWidth: "280px" }}>
             <Card
               sectioned
-              //  Highlight current plan
+              // freeHighlight current plan
               borderColor={plan.name === activePlan ? "#28a745" : undefined}
             >
               <BlockStack gap="300">
@@ -86,7 +86,7 @@ export default function PricingTable({ currentPlan }) {
                   ))}
                 </BlockStack>
 
-                {/*  PLAN BUTTON */}
+                {/* freePLAN BUTTON */}
                 {plan.name === activePlan ? (
                   <Button variant="secondary" fullWidth disabled>
                     Current Plan
@@ -96,20 +96,22 @@ export default function PricingTable({ currentPlan }) {
                     variant="primary"
                     fullWidth
                     onClick={() => {
-                      if (plan.name === "Free") {
+                      if (plan.name === "free") {
+                        localStorage.removeItem("plan"); // reset plan
+                        window.dispatchEvent(new Event("storage")); // force UI update
                         navigate("/app");
                         return;
                       }
 
-                      //  DEV MODE
-                      if (import.meta.env.VITE_SHOPIFY_APP_PUBLIC !== "true") {
-                        localStorage.setItem("userPlan", plan.name);
-                        alert(`Simulating subscription for ${plan.name} plan`);
+                      // DEV MODE
+                      if (import.meta.env.DEV) {
+                        localStorage.setItem("plan", plan.name);
+                        alert(`Simulating ${plan.name} plan`);
                         navigate("/app");
                         return;
                       }
 
-                      //  PRODUCTION
+                      // PRODUCTION
                       navigate(`/app/subscribe?plan=${plan.name}`);
                     }}
                   >

@@ -31,7 +31,7 @@ const shopify = shopifyApp({
   },  
   
   billing: {
-    Pro: {
+    pro: {
       amount: 5,
       currencyCode: "USD",
       interval: "EVERY_30_DAYS",
@@ -50,14 +50,14 @@ export const login = shopify.login;
 export const registerWebhooks = shopify.registerWebhooks;
 export const sessionStorage = shopify.sessionStorage;
 
-//  FINAL PLANS (CLEANED → Only Free + Pro)
+//  FINAL PLANS (CLEANED → Only free + pro)
 export const PLANS = {
-  FREE: {
-    name: "Free",
+  free: {
+    name: "free",
     price: 0,
   },
-  PRO: {
-    name: "Pro",
+  pro: {
+    name: "pro",
     price: 5,
   },
 };
@@ -66,10 +66,10 @@ export const PLANS = {
 export async function getCurrentPlan(admin) {
   try {
     //  DEV MODE FIX
-    if (process.env.NODE_ENV !== "production") {
-      console.log("DEV MODE → forcing Pro plan");
-      return "Pro";
-    }
+    // if (process.env.NODE_ENV === "development") {
+    //   console.log("DEV MODE → forcing pro plan");
+    //   return "free";
+    // }
 
     const response = await admin.graphql(`
       {
@@ -97,14 +97,14 @@ export async function getCurrentPlan(admin) {
     console.log("Shopify Plan:", planName); // debug
 
     //  Normalize plan name
-    if (planName === "Pro" || planName === "Pro Plan") {
-      return "Pro";
+    if (planName === "pro" || planName === "pro Plan") {
+      return "pro";
     }
 
     //  Default
-    return "Free";
+    return "free";
   } catch (error) {
     console.error("Error fetching current plan:", error);
-    return "Free";
+    return "free";
   }
 }
