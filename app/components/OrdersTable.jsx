@@ -1,78 +1,65 @@
-import { useMemo } from "react";
-
-//  Safe date formatter (NO hydration issue)
-const formatDate = (date) => {
-  if (!date) return "";
-  return new Date(date).toISOString().replace("T", " ").slice(0, 19);
-};
+import {
+  IndexTable,
+  Text,
+} from "@shopify/polaris";
 
 export default function OrdersTable({
-  orders,
+  filteredOrders,
   selectedOrders,
-  toggleOrder,
-  toggleAll,
+  handleSelectionChange,
+  formatDate,
 }) {
-  const allSelected =
-    orders.length > 0 && selectedOrders.length === orders.length;
+  const resourceName = {
+    singular: "order",
+    plural: "orders",
+  };
+
+  const rowMarkup = filteredOrders.map((o, index) => (
+    <IndexTable.Row
+      id={o.id}
+      key={o.id}
+      selected={selectedOrders.includes(o.id)}
+      position={index}
+    >
+      <IndexTable.Cell>
+        <Text variant="bodyMd" fontWeight="bold">
+          {o.name}
+        </Text>
+      </IndexTable.Cell>
+
+      <IndexTable.Cell>{o.displayFulfillmentStatus}</IndexTable.Cell>
+
+      <IndexTable.Cell>
+        {o.totalPriceSet?.shopMoney?.amount}{" "}
+        {o.totalPriceSet?.shopMoney?.currencyCode}
+      </IndexTable.Cell>
+
+      <IndexTable.Cell>{o.customer?.displayName}</IndexTable.Cell>
+      <IndexTable.Cell>{o.customer?.email}</IndexTable.Cell>
+      <IndexTable.Cell>{formatDate(o.createdAt)}</IndexTable.Cell>
+    </IndexTable.Row>
+  ));
 
   return (
-    <s-table>
-      {/* HEADER */}
-      <s-table-head>
-        <s-table-row>
-          <s-table-cell>
-            <input
-              type="checkbox"
-              checked={allSelected}
-              onChange={toggleAll}
-            />
-          </s-table-cell>
-          <s-table-cell>Order</s-table-cell>
-          <s-table-cell>Customer</s-table-cell>
-          <s-table-cell>Status</s-table-cell>
-          <s-table-cell>Total</s-table-cell>
-          <s-table-cell>Date</s-table-cell>
-        </s-table-row>
-      </s-table-head>
-
-      {/* BODY */}
-      <s-table-body>
-        {orders.map((order) => {
-          const isSelected = selectedOrders.includes(order.id);
-
-          return (
-            <s-table-row key={order.id}>
-              <s-table-cell>
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={() => toggleOrder(order.id)}
-                />
-              </s-table-cell>
-
-              <s-table-cell>{order.name}</s-table-cell>
-
-              <s-table-cell>
-                {order.customer?.displayName || "-"}
-              </s-table-cell>
-
-              <s-table-cell>
-                {order.displayFulfillmentStatus}
-              </s-table-cell>
-
-              <s-table-cell>
-                {order.totalPriceSet?.shopMoney?.amount}{" "}
-                {order.totalPriceSet?.shopMoney?.currencyCode}
-              </s-table-cell>
-
-              {/*  FIXED DATE */}
-              <s-table-cell>
-                {formatDate(order.createdAt)}
-              </s-table-cell>
-            </s-table-row>
-          );
-        })}
-      </s-table-body>
-    </s-table>
+    <IndexTable
+      resourceName={resourceName}
+      itemCount={filteredOrders.length}
+      selectedItemsCount={
+        selectedOrders.length === filteredOrders.length
+          ? "All"
+          : selectedOrders.length
+      }
+      onSelectionChange={handleSelectionChange} //  from parent
+      headings={[
+        { title: "Order" },
+        { title: "Status" },
+        { title: "Total" },
+        { title: "Customer" },
+        { title: "Email" },
+        { title: "Date" },
+      ]}
+    >
+      {rowMarkup}
+    </IndexTable>
   );
 }

@@ -1,7 +1,8 @@
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
 
 // Shopify App Bridge Provider
-import { AppProvider } from "@shopify/shopify-app-react-router/react";
+//import { AppProvider } from "@shopify/shopify-app-react-router/react";
+import { AppProvider } from "@shopify/polaris";
 
 // ✅ Polaris styles + translations
 import "@shopify/polaris/build/esm/styles.css";

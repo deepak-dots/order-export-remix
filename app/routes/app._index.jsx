@@ -1,474 +1,221 @@
-  import { useState, useMemo, useEffect } from "react";
-  import { useLoaderData, useFetcher } from "react-router";
-  import { boundary } from "@shopify/shopify-app-react-router/server";
-  import { authenticate, getCurrentPlan } from "../shopify.server";
-  import { hasAccess } from "../utils/plans";
+import { useState, useMemo, useEffect } from "react";
+import { useNavigate } from "react-router";
+import { useLoaderData } from "react-router";
+import { boundary } from "@shopify/shopify-app-react-router/server";
+import { authenticate, getCurrentPlan } from "../shopify.server";
+import { Page, Layout, useIndexResourceState } from "@shopify/polaris";
+import OrdersTable from "../components/OrdersTable";
+import OrdersFilters from "../components/FilterSection";
+import OrdersExport from "../components/OrdersExportButton";
+import PlanBanner from "../components/PlanBanner";
 
-  //  LOADER (UNCHANGED)
- export const loader = async ({ request }) => {
-    const { admin } = await authenticate.admin(request);
+import { exportOrders } from "../utils/freeExportOrdersCSV";
+import { exportProOrders } from "../utils/proExportOrdersCSV";
 
-    const plan = (await getCurrentPlan(admin) || "free")
-      .toLowerCase()
-      .trim();
+/* ================= LOADER ================= */
+export const loader = async ({ request }) => {
+  const { admin } = await authenticate.admin(request);
 
-    const ordersResponse = await admin.graphql(`
-      {
-        orders(first: 10, sortKey: CREATED_AT, reverse: true) {
-          edges {
-            node {
-              id
-              name
-              displayFulfillmentStatus
-              createdAt
-              totalPriceSet {
-                shopMoney {
-                  amount
-                  currencyCode
-                }
-              }
-              customer {
-                displayName
-                email
-              }
-              customAttributes {
-                key
-                value
+  const plan = (await getCurrentPlan(admin) || "free")
+    .toLowerCase()
+    .trim();
+
+  const ordersResponse = await admin.graphql(`
+    {
+      orders(first: 10, sortKey: CREATED_AT, reverse: true) {
+        edges {
+          node {
+            id
+            name
+            displayFulfillmentStatus
+            createdAt
+            totalPriceSet {
+              shopMoney {
+                amount
+                currencyCode
               }
             }
+            customer {
+              displayName
+              email
+            }
+            customAttributes {
+              key
+              value
+            } 
           }
         }
       }
-    `);
+    }
+  `);
 
-    const ordersJson = await ordersResponse.json();
+  const ordersJson = await ordersResponse.json();
 
-    return {
-      plan,
-      orders:
-        ordersJson?.data?.orders?.edges?.map((edge) => edge.node) || [],
-    };
+  return {
+    plan,
+    orders:
+      ordersJson?.data?.orders?.edges?.map((edge) => edge.node) || [],
+  };
 };
 
-  export default function Index() {
-    const { orders, plan } = useLoaderData();
-    const [userPlan, setUserPlan] = useState(
-      (plan || "free").toLowerCase().trim()
-    );
-    const isPro = userPlan === "pro";
+/* ================= MAIN ================= */
+export default function Index() {
+  const navigate = useNavigate();
 
-    console.log("User Plan:", userPlan);
+  const { orders, plan } = useLoaderData();
 
-    const [selectedOrders, setSelectedOrders] = useState([]);
-    const [search, setSearch] = useState("");
-    const [filtersOpen, setFiltersOpen] = useState(false);
-    const [activeFilter, setActiveFilter] = useState(null);
-    const [startDate, setStartDate] = useState("");
-    const [endDate, setEndDate] = useState("");
-    const [statusFilter, setStatusFilter] = useState("");
+  const [userPlan, setUserPlan] = useState(plan);
+  const isPro = userPlan === "pro";
 
-    const fetcher = useFetcher();
+  const [search, setSearch] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [activeFilter, setActiveFilter] = useState(null);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
-    //  Trigger download when fetcher.data is updated
-    useEffect(() => {
-      if (fetcher.data) {
-        const blob = new Blob([fetcher.data], { type: "text/csv" });
-        const url = URL.createObjectURL(blob);
 
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `custom-orders-${Date.now()}.csv`;
-        a.click();
-      }
-    }, [fetcher.data]);
+  const [productFilter, setProductFilter] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
+  const [customFilter, setCustomFilter] = useState("");
+  const [metafieldFilter, setMetafieldFilter] = useState("");
 
-    useEffect(() => {
-      if (import.meta.env.DEV) {
-        const localPlan = localStorage.getItem("plan");
-        if (localPlan) {
-          setUserPlan(localPlan.toLowerCase());
-          console.log("Index Page Plan:", localPlan);
-        }
-      }
-    }, []);
 
-    useEffect(() => {
-      const syncPlan = () => {
-        const localPlan = localStorage.getItem("plan");
-        setUserPlan(localPlan ? localPlan.toLowerCase() : "free");
-      };
-
-      syncPlan(); // initial load
-
-      window.addEventListener("storage", syncPlan);
-
-      return () => window.removeEventListener("storage", syncPlan);
-    }, []);
-
-    const formatDate = (date) => {
-      return new Date(date).toLocaleString("en-IN", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+  /* ================= PLAN SYNC ================= */
+  useEffect(() => {
+    const syncPlan = () => {
+      const localPlan = localStorage.getItem("plan");
+      setUserPlan(localPlan ? localPlan.toLowerCase() : plan);
     };
 
-    const filteredOrders = useMemo(() => {
-      return orders.filter((o) => {
-        const s = search.toLowerCase();
+    syncPlan();
+    window.addEventListener("storage", syncPlan);
 
-        const matchSearch =
-          !search ||
-          o.name?.toLowerCase().includes(s) ||
-          o.customer?.displayName?.toLowerCase().includes(s) ||
-          o.customer?.email?.toLowerCase().includes(s);
+    return () => window.removeEventListener("storage", syncPlan);
+  }, [plan]);
 
-        const orderDate = new Date(o.createdAt);
-
-        const matchDate =
-          (!startDate || orderDate >= new Date(startDate)) &&
-          (!endDate || orderDate <= new Date(endDate));
-
-        const matchStatus =
-          !statusFilter || o.displayFulfillmentStatus === statusFilter;
-
-        return matchSearch && matchDate && matchStatus;
-      });
-    }, [orders, search, startDate, endDate, statusFilter]);
-
-    const toggleOrder = (id) => {
-      setSelectedOrders((prev) =>
-        prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-      );
-    };
-
-    const toggleAll = () => {
-      if (selectedOrders.length === filteredOrders.length) {
-        setSelectedOrders([]);
-      } else {
-        setSelectedOrders(filteredOrders.map((o) => o.id));
-      }
-    };
-
-    //  Export helpers
-    const exportOrders = (data, fileName) => {
-      if (!data.length) return alert("No orders");
-
-      const csv = [
-        ["Order", "Status", "Total", "Customer", "Email", "Date"],
-        ...data.map((o) => [
-          o.name,
-          o.displayFulfillmentStatus,
-          o.totalPriceSet?.shopMoney?.amount,
-          o.customer?.displayName,
-          o.customer?.email,
-          formatDate(o.createdAt),
-        ]),
-      ]
-        .map((r) => r.join(","))
-        .join("\n");
-
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      a.click();
-    };
-
-    const exportAllOrders = () => exportOrders(filteredOrders, "all-orders.csv");
-    const exportSelectedOrders = () => {
-      const selected = filteredOrders.filter((o) =>
-        selectedOrders.includes(o.id)
-      );
-      exportOrders(selected, "selected-orders.csv");
-    };
-
-
-      // ==================== Pro exports (with addon fields) ====================
-
-      // Export all orders (Pro)
-      const exportAllOrdersPro = () => {
-        exportProOrders(filteredOrders, "all-orders-pro.csv");
-      };
-
-      // Export selected orders (Pro)
-      const exportSelectedOrdersPro = () => {
-        const selected = filteredOrders.filter(o => selectedOrders.includes(o.id));
-        exportProOrders(selected, "selected-orders-pro.csv");
-      };
-
-      // ==================== Helper functions ====================
-
-
-      // Generic Pro export function
-      function exportProOrders(data, fileName) {
-        if (!data.length) return alert("No orders");
-
-        const csv = [
-          [
-            "Order",
-            "Status",
-            "Total",
-            "Customer",
-            "Email",
-            "Date",
-            "Custom Properties",
-            "Scheduled Export",
-            "Remove Shopify Branding",
-          ],
-          ...data.map((o) => [
-            o.name,
-            o.displayFulfillmentStatus,
-            o.totalPriceSet?.shopMoney?.amount,
-            o.customer?.displayName,
-            o.customer?.email,
-            formatDate(o.createdAt),
-            (o.customAttributes || []).map(attr => `${attr.key}: ${attr.value}`).join(" | "),
-            "", // Scheduled Export placeholder
-            "", // Remove Shopify Branding placeholder
-          ]),
-        ]
-          .map((r) => r.join(","))
-          .join("\n");
-
-        const blob = new Blob([csv], { type: "text/csv" });
-        const url = URL.createObjectURL(blob);
-
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        a.click();
-    }
-
- const exportCustomOrders = async () => {
-  if (userPlan !== "pro") {
-    alert("Upgrade to Pro plan to use Custom Export");
-    return;
-  }
-
-  if (selectedOrders.length === 0) {
-    alert("No orders selected");
-    return;
-  }
-
-  const customSelectedOrders = filteredOrders.filter((o) =>
-    selectedOrders.includes(o.id)
-  );
-
-  try {
-    const res = await fetch("/app/export", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orders: customSelectedOrders }),
+  /* ================= DATE FORMAT ================= */
+  const formatDate = (date) =>
+    new Date(date).toLocaleString("en-IN", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
 
-    if (!res.ok) throw new Error("Failed to export orders");
+  /* ================= FILTER ORDERS ================= */
+  const filteredOrders = useMemo(() => {
+    return orders.filter((o) => {
+      const s = search.toLowerCase();
 
-    const text = await res.text();
+      const matchSearch =
+        !search ||
+        o.name?.toLowerCase().includes(s) ||
+        o.customer?.displayName?.toLowerCase().includes(s) ||
+        o.customer?.email?.toLowerCase().includes(s);
 
-    const blob = new Blob([text], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
+      const orderDate = new Date(o.createdAt);
 
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `custom-orders-${Date.now()}.csv`;
-    a.click();
+      const matchDate =
+        (!startDate || orderDate >= new Date(startDate)) &&
+        (!endDate || orderDate <= new Date(endDate));
 
-    URL.revokeObjectURL(url);
-  } catch (err) {
-    console.error("EXPORT ERROR:", err);
-    alert("Failed to export orders");
-  }
-};
+      const matchStatus =
+        !statusFilter || o.displayFulfillmentStatus === statusFilter;
 
-    return (
-      <div style={{ width: "100%", maxWidth: "100%", padding: "20px" }}>
-        <s-page heading={`Orders (${userPlan} Plan)`} fullWidth>
-          <s-section>
-            <s-stack direction="block" gap="base">
-              {/* SEARCH */}
-              <input
-                type="text"
-                placeholder="Search orders..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                style={{
-                  padding: "10px",
-                  border: "1px solid #ccc",
-                  borderRadius: "6px",
-                  width: "300px",
-                }}
-              />
+      return matchSearch && matchDate && matchStatus;
+    });
+  }, [orders, search, startDate, endDate, statusFilter]);
 
-              {/* FILTER */}
-              <div style={{ position: "relative" }}>
-                <s-button onClick={() => setFiltersOpen(!filtersOpen)}>
-                  Filter by
-                </s-button>
+  /* ================= SELECTION ================= */
+const {
+  selectedResources: selectedOrders,
+  allResourcesSelected,
+  handleSelectionChange,
+} = useIndexResourceState(filteredOrders);
 
-                {filtersOpen && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "40px",
-                      background: "#fff",
-                      border: "1px solid #ddd",
-                      padding: "15px",
-                      borderRadius: "8px",
-                      zIndex: 10,
-                      width: "250px",
-                    }}
-                  >
-                    {!activeFilter && (
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "8px",
-                        }}
-                      >
-                        <button onClick={() => setActiveFilter("date")}>
-                          Date
-                        </button>
-                        <button onClick={() => setActiveFilter("status")}>
-                          Status
-                        </button>
-                      </div>
-                    )}
 
-                    {activeFilter && (
-                      <button onClick={() => setActiveFilter(null)}>← Back</button>
-                    )}
+  // free plan export (basic)
+  const exportAllOrders = () =>
+    exportOrders(filteredOrders, "all-orders.csv", formatDate);
 
-                    {activeFilter === "date" && (
-                      <>
-                        <input
-                          type="date"
-                          value={startDate}
-                          onChange={(e) => setStartDate(e.target.value)}
-                        />
-                        <input
-                          type="date"
-                          value={endDate}
-                          onChange={(e) => setEndDate(e.target.value)}
-                        />
-                      </>
-                    )}
-
-                    {activeFilter === "status" && (
-                      <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                      >
-                        <option value="">All</option>
-                        <option value="FULFILLED">Fulfilled</option>
-                        <option value="UNFULFILLED">Unfulfilled</option>
-                      </select>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* EXPORT BUTTONS */}
-
-              <s-stack direction="inline" gap="base">
-                {isPro ? (
-                  <>
-                    <s-button className="btn-pro" onClick={exportAllOrdersPro}>
-                      Export Orders + Addon Data
-                    </s-button>
-
-                    <s-button
-                      className="btn-pro"
-                      onClick={exportSelectedOrdersPro}
-                      disabled={selectedOrders.length === 0}
-                    >
-                      Selected Export + Addon Data ({selectedOrders.length})
-                    </s-button>
-
-                    <s-button
-                      className="btn-pro"
-                      onClick={() => (window.location.href = "/app/price")}
-                    >
-                      Go to Plan Page
-                    </s-button>
-                  </>
-                ) : (
-                  <>
-                    <s-button className="btn-free" onClick={exportAllOrders}>
-                      Export Orders
-                    </s-button>
-
-                    <s-button
-                      className="btn-free"
-                      onClick={exportSelectedOrders}
-                      disabled={selectedOrders.length === 0}
-                    >
-                      Selected Export ({selectedOrders.length})
-                    </s-button>
-                  </>
-                )}
-              </s-stack>
-
-              {/* TABLE */}
-              <s-table>
-                <s-table-head>
-                  <s-table-row>
-                    <s-table-cell variant="header">
-                      <input
-                        type="checkbox"
-                        checked={
-                          selectedOrders.length === filteredOrders.length &&
-                          filteredOrders.length > 0
-                        }
-                        onChange={toggleAll}
-                      />
-                    </s-table-cell>
-                    <s-table-cell variant="header">Order</s-table-cell>
-                    <s-table-cell variant="header">Status</s-table-cell>
-                    <s-table-cell variant="header">Total</s-table-cell>
-                    <s-table-cell variant="header">Customer</s-table-cell>
-                    <s-table-cell variant="header">Email</s-table-cell>
-                    <s-table-cell variant="header">Date</s-table-cell>
-                  </s-table-row>
-                </s-table-head>
-
-                <s-table-body>
-                  {filteredOrders.map((o) => (
-                    <s-table-row key={o.id}>
-                      <s-table-cell>
-                        <input
-                          type="checkbox"
-                          checked={selectedOrders.includes(o.id)}
-                          onChange={() => toggleOrder(o.id)}
-                        />
-                      </s-table-cell>
-                      <s-table-cell>{o.name}</s-table-cell>
-                      <s-table-cell>{o.displayFulfillmentStatus}</s-table-cell>
-                      <s-table-cell>
-                        {o.totalPriceSet?.shopMoney?.amount}{" "}
-                        {o.totalPriceSet?.shopMoney?.currencyCode}
-                      </s-table-cell>
-                      <s-table-cell>{o.customer?.displayName}</s-table-cell>
-                      <s-table-cell>{o.customer?.email}</s-table-cell>
-                      <s-table-cell suppressHydrationWarning>
-                        {formatDate(o.createdAt)}
-                      </s-table-cell>
-                    </s-table-row>
-                  ))}
-                </s-table-body>
-              </s-table>
-            </s-stack>
-          </s-section>
-        </s-page>
-      </div>
+  const exportSelectedOrders = () => {
+    const selected = filteredOrders.filter((o) =>
+      selectedOrders.includes(o.id)
     );
-  }
 
-  export const headers = (headersArgs) => {
-    return boundary.headers(headersArgs);
+    exportOrders(selected, "selected-orders.csv", formatDate);
   };
+
+
+  // pro plan export (with custom properties + extra columns)
+  const exportAllOrdersPro = () =>
+    exportProOrders(filteredOrders, "all-orders-pro.csv", formatDate);
+
+  const exportSelectedOrdersPro = () => {
+    const selected = filteredOrders.filter((o) =>
+      selectedOrders.includes(o.id)
+    );
+
+    exportProOrders(selected, "selected-orders-pro.csv", formatDate);
+  };
+
+  return (
+    <div style={{ padding: "20px" }}>
+      <PlanBanner plan={userPlan} />
+      <Page fullWidth title="">
+        <s-section>
+          <s-stack direction="block" gap="base">
+
+            {/* FILTERS */}
+            <OrdersFilters
+              search={search}
+              setSearch={setSearch}
+
+              startDate={startDate}
+              setStartDate={setStartDate}
+              endDate={endDate}
+              setEndDate={setEndDate}
+
+              statusFilter={statusFilter}
+              setStatusFilter={setStatusFilter}
+
+              productFilter={productFilter}
+              setProductFilter={setProductFilter}
+
+              tagFilter={tagFilter}
+              setTagFilter={setTagFilter}
+
+              customFilter={customFilter}
+              setCustomFilter={setCustomFilter}
+
+              metafieldFilter={metafieldFilter}
+              setMetafieldFilter={setMetafieldFilter}
+            />
+
+            <OrdersExport
+              isPro={isPro}
+              exportAllOrders={exportAllOrders}
+              exportSelectedOrders={exportSelectedOrders}
+              exportAllOrdersPro={exportAllOrdersPro}
+              exportSelectedOrdersPro={exportSelectedOrdersPro}
+              selectedOrders={selectedOrders}
+              goToPlan={() => navigate("/app/price")}
+            />
+
+            <OrdersTable
+              filteredOrders={filteredOrders}
+              selectedOrders={selectedOrders}
+              handleSelectionChange={handleSelectionChange}
+              formatDate={formatDate}
+            />
+
+          </s-stack>
+        </s-section>
+      </Page>
+    </div>
+  );
+}
+
+export const headers = (args) => boundary.headers(args);

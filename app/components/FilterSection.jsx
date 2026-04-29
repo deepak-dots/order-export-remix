@@ -1,94 +1,224 @@
-import { useState } from "react";
-import { hasAccess } from "../utils/plans"; // ✅ ADD
-import { useLoaderData } from "react-router"; // ✅ ADD
-// import AdvancedFilters from "./AdvancedFilters"; // ✅ (assume already created)
+import {
+  TextField,
+  Button,
+  Popover,
+  ActionList,
+  Card,
+  Select,
+  Text,
+  BlockStack,
+  InlineStack,
+  Tag,
+} from "@shopify/polaris";
+import { useState, useCallback } from "react";
 
-export default function FilterSection({
+export default function OrdersFilters({
+  search,
+  setSearch,
+
   startDate,
   setStartDate,
   endDate,
   setEndDate,
-  statusFilter,
-  setStatusFilter
-}) {
-  const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(null);
 
-  const { plan } = useLoaderData(); // ✅ GET PLAN
+  statusFilter,
+  setStatusFilter,
+
+  productFilter,
+  setProductFilter,
+  tagFilter,
+  setTagFilter,
+  customFilter,
+  setCustomFilter,
+  metafieldFilter,
+  setMetafieldFilter,
+}) {
+  const [popoverActive, setPopoverActive] = useState(false);
+  const [activeFilter, setActiveFilter] = useState(null);
+  const goBack = () => setActiveFilter(null);
+
+  const togglePopover = useCallback(
+    () => setPopoverActive((active) => !active),
+    []
+  );
+
+  const activator = <Button onClick={togglePopover}>Filter</Button>;
 
   return (
-    <div style={{ position: "relative" }}>
-      <s-button onClick={() => setOpen(!open)}>Filter</s-button>
+    <BlockStack gap="300">
+      
+      {/* SEARCH + BUTTON */}
+      <InlineStack gap="200">
+        <TextField
+          value={search}
+          onChange={setSearch}
+          placeholder="Search orders..."
+          autoComplete="off"
+        />
 
-      {open && (
-        <div style={{
-          position: "absolute",
-          top: "40px",
-          background: "#fff",
-          border: "1px solid #ddd",
-          padding: "15px",
-          borderRadius: "8px",
-          width: "250px"
-        }}>
+        <Popover active={popoverActive} activator={activator} onClose={togglePopover}>
+          <Card>
+            <BlockStack gap="300" padding="300">
 
-          {!active && (
-            <>
-              <button onClick={() => setActive("date")}>Date</button>
-              <button onClick={() => setActive("status")}>Status</button>
-
-              {/* 🔥 ADVANCED FILTER ENTRY */}
-              {hasAccess(plan, "filterPresets") && (
-                <button onClick={() => setActive("advanced")}>
-                  Advanced Filters
-                </button>
+              {!activeFilter && (
+                <ActionList
+                  items={[
+                    { content: "Date", onAction: () => setActiveFilter("date") },
+                    { content: "Status", onAction: () => setActiveFilter("status") },
+                    { content: "Product", onAction: () => setActiveFilter("product") },
+                    { content: "Tag", onAction: () => setActiveFilter("tag") },
+                    { content: "Custom Property", onAction: () => setActiveFilter("custom") },
+                    { content: "Metafield", onAction: () => setActiveFilter("meta") },
+                  ]}
+                />
               )}
-            </>
-          )}
 
-          {active && (
-            <button onClick={() => setActive(null)}>← Back</button>
-          )}
+              {/* DATE */}
+              {activeFilter === "date" && (
+                <BlockStack>
+                  <Button onClick={() => {
+                    const today = new Date().toISOString().split("T")[0];
+                    setStartDate(today);
+                    setEndDate(today);
+                  }}>Today</Button>
 
-          {/* DATE FILTER */}
-          {active === "date" && (
-            <>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e)=>setStartDate(e.target.value)}
-              />
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e)=>setEndDate(e.target.value)}
-              />
-            </>
-          )}
+                  <Button onClick={() => {
+                    const now = new Date();
+                    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                    setStartDate(firstDay.toISOString().split("T")[0]);
+                    setEndDate(new Date().toISOString().split("T")[0]);
+                  }}>This Month</Button>
 
-          {/* STATUS FILTER */}
-          {active === "status" && (
-            <select
-              value={statusFilter}
-              onChange={(e)=>setStatusFilter(e.target.value)}
-            >
-              <option value="">All</option>
-              <option value="FULFILLED">Fulfilled</option>
-              <option value="UNFULFILLED">Unfulfilled</option>
-            </select>
-          )}
+                  <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                  <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
 
-          {/* 🔥 ADVANCED FILTER UI */}
-          {active === "advanced" && hasAccess(plan, "filterPresets") && (
-            <div>
-              {/* Example Advanced Filters */}
-              <input placeholder="Min Order Value" />
-              <input placeholder="Max Order Value" />
-              <input placeholder="Customer Email" />
-            </div>
-          )}
+                  <Button onClick={() => setActiveFilter(null)}>Back</Button>
+                </BlockStack>
+              )}
 
-        </div>
-      )}
-    </div>
+              {/* STATUS */}
+              {activeFilter === "status" && (
+                <BlockStack gap="200">
+                  <Text variant="headingSm">Select Status</Text>
+
+                  <Select
+                    options={[
+                      { label: "All", value: "" },
+                      { label: "Fulfilled", value: "FULFILLED" },
+                      { label: "Unfulfilled", value: "UNFULFILLED" },
+                    ]}
+                    value={statusFilter}
+                    onChange={setStatusFilter}
+                  />
+
+                  <Button onClick={goBack}>Back</Button>
+                </BlockStack>
+              )}
+
+              {/* PRODUCT */}
+              {activeFilter === "product" && (
+                <BlockStack gap="200">
+                  <Text variant="headingSm">Product</Text>
+
+                  <TextField
+                    value={productFilter}
+                    onChange={setProductFilter}
+                  />
+
+                  <Button onClick={goBack}>Back</Button>
+                </BlockStack>
+              )}
+
+              {/* TAG */}
+              {activeFilter === "tag" && (
+                <BlockStack gap="200">
+                  <Text variant="headingSm">Tag</Text>
+
+                  <TextField
+                    value={tagFilter}
+                    onChange={setTagFilter}
+                  />
+
+                  <Button onClick={goBack}>Back</Button>
+                </BlockStack>
+              )}
+
+              {/* CUSTOM */}
+              {activeFilter === "custom" && (
+                <BlockStack gap="200">
+                  <Text variant="headingSm">Custom Property</Text>
+
+                  <TextField
+                    value={customFilter}
+                    onChange={setCustomFilter}
+                  />
+
+                  <Button onClick={goBack}>Back</Button>
+                </BlockStack>
+              )}
+
+              {/* META */}
+              {activeFilter === "meta" && (
+                <BlockStack gap="200">
+                  <Text variant="headingSm">Metafield</Text>
+
+                  <TextField
+                    value={metafieldFilter}
+                    onChange={setMetafieldFilter}
+                  />
+
+                  <Button onClick={goBack}>Back</Button>
+                </BlockStack>
+              )}
+
+            </BlockStack>
+          </Card>
+        </Popover>
+      </InlineStack>
+
+      {/* 🔥 SELECTED FILTER TAGS */}
+      <InlineStack gap="200">
+
+        {statusFilter && (
+          <Tag onRemove={() => setStatusFilter("")}>
+            Status: {statusFilter}
+          </Tag>
+        )}
+
+        {startDate && (
+          <Tag onRemove={() => {
+            setStartDate("");
+            setEndDate("");
+          }}>
+            Date: {startDate} → {endDate}
+          </Tag>
+        )}
+
+        {productFilter && (
+          <Tag onRemove={() => setProductFilter("")}>
+            Product: {productFilter}
+          </Tag>
+        )}
+
+        {tagFilter && (
+          <Tag onRemove={() => setTagFilter("")}>
+            Tag: {tagFilter}
+          </Tag>
+        )}
+
+        {customFilter && (
+          <Tag onRemove={() => setCustomFilter("")}>
+            Custom: {customFilter}
+          </Tag>
+        )}
+
+        {metafieldFilter && (
+          <Tag onRemove={() => setMetafieldFilter("")}>
+            Meta: {metafieldFilter}
+          </Tag>
+        )}
+
+      </InlineStack>
+    </BlockStack>
   );
 }
